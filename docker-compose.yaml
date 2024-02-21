@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  myapp:
+    image: pismo:latest
+    ports:
+      - "2020:2020"
+    environment:
+      - PORT=2020
+      - DB_ADDRESS=mongodb://admin:password@mongodb:27017
+      - ACCOUNTS_COLLECTION=accounts
+      - TRANSACTION_COLLECTION=transactions
+      - DB_NAME=pismodb
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=password
+    ports:
+      - "27017:27017"
