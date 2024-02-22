@@ -1,7 +1,7 @@
 # Pismo
 
 ### Config:
-This application takes configuration through enviroment variables which are:
+This application takes configuration through environment variables which are:
 [server.env](cmd%2Fserver.env)
 
 ### Prerequisites:
@@ -15,7 +15,7 @@ chmod +x run.sh
 ./run.sh
 ```
 
-To edit environment variables edit them in [docker-compose.yaml](docker-compose.yaml)
+To configure environment variables edit them in [docker-compose.yaml](docker-compose.yaml)
 
 ### APIS:
 
@@ -83,4 +83,12 @@ Response:
 {
     "message": "account don't exists"
 }
+```
+
+### Unit Test Cases
+`pkg/restserver` has unit test cases for apis
+
+To run unit test cases
+```shell
+ go test ./... --cover
 ```

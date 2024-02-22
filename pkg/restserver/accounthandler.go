@@ -10,10 +10,13 @@ import (
 
 // createAccount handler for post /accounts
 func (r *RestServer) createAccount(c echo.Context) error {
-	req := new(CreateAccountRequest)
+	req := &CreateAccountRequest{}
 	err := c.Bind(req)
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"message": err.Error()})
+	}
+	if req.DocumentNumber == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"message": "document number is missing"})
 	}
 	accountData := &model.Account{
 		DocumentNumber: req.DocumentNumber,
