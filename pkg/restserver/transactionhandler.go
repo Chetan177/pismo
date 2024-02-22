@@ -32,6 +32,10 @@ func (r *RestServer) createTransaction(c echo.Context) error {
 	switch req.OperationTypeID {
 	case purchaseWithInstallment, normalPurchase, withdrawal:
 		req.Amount = -1 * req.Amount
+	case creditVoucher:
+
+	default:
+		return c.JSON(http.StatusBadRequest, map[string]string{"message": "invalid operation"})
 	}
 
 	transData := &model.Transaction{

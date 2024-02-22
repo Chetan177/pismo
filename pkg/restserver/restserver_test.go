@@ -97,6 +97,7 @@ func TestCreatTransaction(t *testing.T) {
 	}{
 		{`{"account_id":"65d683625777994656e7dedf","operation_type_id":2,"amount":20}`, 200},
 		{`{"account_id":"","operation_type_id":2,"amount":20}`, 400},
+		{`{"account_id":"65d683625777994656e7dedf","operation_type_id":10,"amount":20}`, 400},
 		{`{"account_id":"65d683625777994656e7dedf-fail","operation_type_id":2,"amount":20}`, 400},
 	}
 
