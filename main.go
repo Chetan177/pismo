@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/Chetan177/pismo/pkg/restserver"
+	"github.com/Chetan177/pismo/api"
 )
 
 func main() {
@@ -15,7 +15,7 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 
-	server := restserver.NewRestServer()
+	server := api.NewApiServer()
 	server.Start()
 
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
