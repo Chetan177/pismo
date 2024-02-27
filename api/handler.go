@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 	"fmt"
+	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/mongo/writeconcern"
 	"log"
 	"net/http"
 	"time"
@@ -113,7 +115,12 @@ func (s *Server) createTransaction(c echo.Context) error {
 	case purchaseWithInstallment, normalPurchase, withdrawal:
 		req.Amount = -1 * req.Amount
 	case creditVoucher:
-
+		result, err := s.processDischarges(req)
+		if err != nil {
+			return s.logAndReturnResponse(c, err, http.StatusInternalServerError, "not able to create transaction")
+		}
+		output := result.(*mongo.InsertOneResult)
+		return c.JSON(http.StatusOK, &CreateTransactionResponse{TransactionId: output.InsertedID.(primitive.ObjectID).Hex()})
 	}
 
 	transData := Transaction{
@@ -121,6 +128,7 @@ func (s *Server) createTransaction(c echo.Context) error {
 		OperationTypeId: req.OperationTypeID,
 		Amount:          req.Amount,
 		TimeStamp:       time.Now().Format(time.RFC3339),
+		Balance:         req.Amount,
 	}
 
 	result, err := s.transactionCollection.InsertOne(context.Background(), transData)
@@ -130,6 +138,82 @@ func (s *Server) createTransaction(c echo.Context) error {
 	transData.Id = result.InsertedID.(primitive.ObjectID)
 
 	return c.JSON(http.StatusOK, &CreateTransactionResponse{TransactionId: transData.Id.Hex()})
+}
+
+func (s *Server) processDischarges(req *CreateTransactionRequest) (interface{}, error) {
+	filter := bson.M{
+		"account_id": req.AccountID,
+		"balance":    bson.E{Key: "$lt", Value: 0},
+	}
+
+	wc := writeconcern.Majority()
+	txnOptions := options.Transaction().SetWriteConcern(wc)
+
+	session, err := s.db.StartSession()
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := session.WithTransaction(context.TODO(), func(ctx mongo.SessionContext) (interface{}, error) {
+		return s.processDischargeTranscation(ctx, filter, req)
+	}, txnOptions)
+
+	return result, nil
+}
+
+func (s *Server) processDischargeTranscation(ctx mongo.SessionContext, filter bson.M, newTarn *CreateTransactionRequest) (interface{}, error) {
+
+	var transcations []Transaction
+	cursor, err := s.transactionCollection.Find(context.Background(), filter)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = cursor.All(context.TODO(), &transcations); err != nil {
+		return nil, err
+	}
+
+	currBalance, err := s.doDischarge(transcations, newTarn)
+	if err != nil {
+		return nil, err
+	}
+	transData := Transaction{
+		AccountID:       newTarn.AccountID,
+		OperationTypeId: newTarn.OperationTypeID,
+		Amount:          currBalance,
+		TimeStamp:       time.Now().Format(time.RFC3339),
+	}
+	result, err := s.transactionCollection.InsertOne(context.Background(), transData)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (s *Server) doDischarge(transcations []Transaction, newTarn *CreateTransactionRequest) (float32, error) {
+	currBalance := newTarn.Amount
+	flag := false
+	for _, t := range transcations {
+		t.Balance = currBalance - t.Balance
+		if t.Balance > 0 {
+			currBalance = t.Balance
+			t.Balance = 0
+		} else if t.Balance <= 0 {
+			currBalance = 0
+			flag = true
+		}
+
+		_, err := s.transactionCollection.UpdateByID(context.Background(), t.Id, t)
+		if err != nil {
+			return currBalance, err
+		}
+
+		if flag {
+			break
+		}
+	}
+	return currBalance, nil
 }
 
 func (s *Server) logAndReturnResponse(c echo.Context, err error, code int, message string) error {

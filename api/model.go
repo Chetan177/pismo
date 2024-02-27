@@ -39,4 +39,5 @@ type Transaction struct {
 	OperationTypeId int                `bson:"operation_type_id"`
 	Amount          float32            `bson:"amount"`
 	TimeStamp       string             `bson:"time_stamp"`
+	Balance         float32            `bson:"balance"`
 }
