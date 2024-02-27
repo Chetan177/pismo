@@ -143,7 +143,7 @@ func (s *Server) createTransaction(c echo.Context) error {
 func (s *Server) processDischarges(req *CreateTransactionRequest) (interface{}, error) {
 	filter := bson.M{
 		"account_id": req.AccountID,
-		"balance":    bson.E{Key: "$lt", Value: 0},
+		"balance":    bson.M{"$lt": 0},
 	}
 
 	wc := writeconcern.Majority()
@@ -153,6 +153,7 @@ func (s *Server) processDischarges(req *CreateTransactionRequest) (interface{}, 
 	if err != nil {
 		return nil, err
 	}
+	defer session.EndSession(context.Background())
 
 	result, err := session.WithTransaction(context.TODO(), func(ctx mongo.SessionContext) (interface{}, error) {
 		return s.processDischargeTranscation(ctx, filter, req)
@@ -180,7 +181,8 @@ func (s *Server) processDischargeTranscation(ctx mongo.SessionContext, filter bs
 	transData := Transaction{
 		AccountID:       newTarn.AccountID,
 		OperationTypeId: newTarn.OperationTypeID,
-		Amount:          currBalance,
+		Amount:          newTarn.Amount,
+		Balance:         currBalance,
 		TimeStamp:       time.Now().Format(time.RFC3339),
 	}
 	result, err := s.transactionCollection.InsertOne(context.Background(), transData)
@@ -195,7 +197,7 @@ func (s *Server) doDischarge(transcations []Transaction, newTarn *CreateTransact
 	currBalance := newTarn.Amount
 	flag := false
 	for _, t := range transcations {
-		t.Balance = currBalance - t.Balance
+		t.Balance = currBalance + t.Balance
 		if t.Balance > 0 {
 			currBalance = t.Balance
 			t.Balance = 0
@@ -203,8 +205,9 @@ func (s *Server) doDischarge(transcations []Transaction, newTarn *CreateTransact
 			currBalance = 0
 			flag = true
 		}
-
-		_, err := s.transactionCollection.UpdateByID(context.Background(), t.Id, t)
+		filter := bson.M{"_id": t.Id}
+		update := bson.M{"$set": bson.M{"balance": t.Balance}}
+		_, err := s.transactionCollection.UpdateOne(context.Background(), filter, update)
 		if err != nil {
 			return currBalance, err
 		}
